@@ -49,6 +49,18 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "owner": "ankurindozs-team",
+    "extra": {
+      "eas": {
+        "projectId": "c6d9c6f6-5062-431c-bc31-0191358793cc"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c6d9c6f6-5062-431c-bc31-0191358793cc"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }
