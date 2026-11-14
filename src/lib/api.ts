@@ -69,19 +69,23 @@ async function getJson<T>(url: string): Promise<T> {
   }
 }
 
+/** "regina" -> "Regina", "NEW DELHI" -> "New Delhi" */
+export const titleCase = (s: string) => (s && (s === s.toLowerCase() || s === s.toUpperCase()) ? s.toLowerCase().replace(/(^|[\s\-'])(\p{L})/gu, (_m, a, b) => a + b.toUpperCase()) : s);
+const tidy = <T extends JobCard>(j: T): T => ({ ...j, city: titleCase(j.city) });
+
 const base = (site: SiteCode) => `${SITES[site].host}/wp-json/jobsrack/v1`;
 
 export function searchJobs(site: SiteCode, q: string, loc: string, page = 1) {
   const p = new URLSearchParams({ q, loc, page: String(page) });
-  return getJson<JobList>(`${base(site)}/jobs?${p.toString()}`);
+  return getJson<JobList>(`${base(site)}/jobs?${p.toString()}`).then((r) => ({ ...r, items: r.items.map(tidy) }));
 }
 
 export function jobsByIds(site: SiteCode, ids: number[]) {
-  return getJson<JobList>(`${base(site)}/jobs?ids=${ids.join(',')}`);
+  return getJson<JobList>(`${base(site)}/jobs?ids=${ids.join(',')}`).then((r) => ({ ...r, items: r.items.map(tidy) }));
 }
 
 export function getJob(site: SiteCode, id: number) {
-  return getJson<JobDetail>(`${base(site)}/job/${id}`);
+  return getJson<JobDetail>(`${base(site)}/job/${id}`).then(tidy);
 }
 
 export function getMeta(site: SiteCode) {
