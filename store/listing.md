@@ -56,3 +56,20 @@ https://jobsrack.com/privacy-policy/
 JobsRack is a job board. No sign-in is needed to browse or apply.
 To test applying: open any job, tap Apply now, fill in any name/email/phone and attach any PDF.
 Job alerts: Alerts tab, create an alert, allow notifications.
+
+## Account deletion URL (Google Play, required)
+https://jobsrack.com/delete-account/
+
+## Google Play data safety answers
+- Data collected: Name, Email address, Phone number (Personal info); Files and docs (resume); Device or other IDs (push token, only if job alerts are on).
+- Purpose: App functionality (sending job applications, job alerts). Not used for advertising or analytics.
+- Shared with third parties: Yes, the employer the user applies to (name, email, phone, resume), at the user's request.
+- Encrypted in transit: Yes (HTTPS).
+- Users can request deletion: Yes, via https://jobsrack.com/delete-account/
+- Required or optional: Required only to apply; browsing, saving and alerts need nothing.
+
+## Google Play content rating
+Questionnaire category: Utility, Productivity, Communication, or Other. No violence, sexual content, gambling or user-to-user chat with strangers. Expected rating: Everyone / PEGI 3.
+
+## Target audience
+18 and over (job seekers). Not designed for children.
