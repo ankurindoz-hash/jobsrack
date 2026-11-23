@@ -60,7 +60,7 @@ const v1 = (site: SiteCode) => `${SITES[site].host}/wp-json/jobsrack/v1`;
 
 export class AuthError extends Error {}
 
-async function call<T>(site: SiteCode, path: string, opts: { method?: string; body?: any; auth?: boolean } = {}): Promise<T> {
+async function call<T>(site: SiteCode, path: string, opts: { method?: string; body?: any; auth?: boolean; timeout?: number } = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   const token = getState().auth?.token;
   if (token && opts.auth !== false) {
@@ -74,7 +74,7 @@ async function call<T>(site: SiteCode, path: string, opts: { method?: string; bo
     body = JSON.stringify(opts.body);
   }
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 30000);
+  const t = setTimeout(() => ctrl.abort(), opts.timeout ?? 30000);
   try {
     const r = await fetch(v1(site) + path, { method: opts.method ?? (body ? 'POST' : 'GET'), headers, body, signal: ctrl.signal });
     let j: any = null;
@@ -161,3 +161,30 @@ export const setApplicantStatus = (site: SiteCode, jobId: number, userId: number
 export const searchCandidates = (site: SiteCode, q: string, loc: string, page = 1) =>
   call<{ items: Candidate[]; pages: number; total: number }>(site, `/employer/candidates?q=${encodeURIComponent(q)}&loc=${encodeURIComponent(loc)}&page=${page}`);
 export const candidate = (site: SiteCode, id: number) => call<CandidateDetail>(site, `/employer/candidates/${id}`);
+
+/* ---------- AI resume writer ---------- */
+export type ResumeDoc = {
+  name: string;
+  headline: string;
+  contact: { email: string; phone: string; city: string; link: string };
+  summary: string;
+  skills: string[];
+  experience: { title: string; company: string; city: string; start: string; end: string; bullets: string[] }[];
+  education: { credential: string; school: string; city: string; year: string }[];
+  certifications: string[];
+  languages: string[];
+  extras: { heading: string; items: string[] }[];
+  tips: string[];
+};
+export type ResumeInput = { name: string; target: string; email: string; phone: string; city: string; experience: string; education: string; skills: string; job_ad?: string };
+
+export const resumeStatus = (site: SiteCode) => call<{ ready: boolean; country: string }>(site, '/resume/status');
+
+export function writeResume(site: SiteCode, f: ResumeInput, old?: { uri: string; name: string; mimeType?: string; file?: any } | null) {
+  const fd = new FormData();
+  Object.entries(f).forEach(([k, v]) => v && fd.append(k, String(v)));
+  if (old) fd.append('old_resume', (old.file ?? { uri: old.uri, name: old.name, type: old.mimeType || 'application/pdf' }) as any);
+  return call<{ resume: ResumeDoc }>(site, '/resume/write', { body: fd, timeout: 120000 }).then((r) => r.resume);
+}
+
+export const resumePdf = (site: SiteCode, resume: ResumeDoc, save = false) => call<{ url: string; saved: boolean; name: string }>(site, '/resume/pdf', { body: { resume, save: save ? 1 : 0 }, timeout: 60000 });

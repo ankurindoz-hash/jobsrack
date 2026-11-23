@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../../components/ui';
 import { applyWithSavedResume } from '../../lib/account';
+import { takeDraftResume } from '../../lib/resumeDraft';
 import { askForReview } from '../../lib/review';
 import { applyToJob, getJob, type JobDetail, type SiteCode } from '../../lib/api';
 import { getState, markApplied, setProfile, useStore } from '../../lib/store';
@@ -49,6 +50,17 @@ export default function Apply() {
       })
       .catch((e) => setErr(e.message));
   }, [site, id]);
+
+  // Coming back from the AI resume builder with a new resume
+  useFocusEffect(
+    useCallback(() => {
+      const d = takeDraftResume();
+      if (d) {
+        setResume(d);
+        setErr('');
+      }
+    }, []),
+  );
 
   const pick = async () => {
     const r = await DocumentPicker.getDocumentAsync({
@@ -136,6 +148,13 @@ export default function Apply() {
             {resume ? resume.name : savedResume ? `Use my saved resume: ${savedResume}` : 'Choose your resume (PDF or Word, up to 5 MB)'}
           </Text>
         </Pressable>
+        {!resume && (
+          <Pressable onPress={() => router.push({ pathname: '/resume', params: { from: 'apply', target: job.title } })} style={st.ai} accessibilityRole="button">
+            <Ionicons name="sparkles" size={18} color={colors.brand} />
+            <Text style={{ color: colors.brand, fontWeight: '700', flex: 1 }}>{savedResume ? 'Want a better resume? Make one free with AI' : 'No resume? Make one free with AI in a minute'}</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.brand} />
+          </Pressable>
+        )}
 
         {job.questions.map((q, i) => (
           <View key={i}>
@@ -184,6 +203,7 @@ const st = StyleSheet.create({
   input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#D0D5DD', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, fontSize: 16, color: colors.ink },
   file: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: '#98A2B3', borderRadius: 10, padding: 14, backgroundColor: '#fff' },
   fileText: { flex: 1, color: colors.text, fontSize: 14 },
+  ai: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, padding: 12, borderRadius: 10, backgroundColor: '#ECFDF3' },
   yn: { flex: 1, borderWidth: 1, borderColor: colors.brand, borderRadius: 10, paddingVertical: 11, alignItems: 'center', backgroundColor: '#fff' },
   ynOn: { backgroundColor: colors.brand },
   ynText: { color: colors.brand, fontWeight: '700' },

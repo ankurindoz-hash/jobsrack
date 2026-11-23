@@ -122,6 +122,10 @@ export default function Profile() {
                 <Text style={{ color: colors.brand }}>View my resume</Text>
               </Pressable>
             )}
+            <Pressable onPress={() => router.push('/resume')} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+              <Ionicons name="sparkles" size={16} color={colors.brand} />
+              <Text style={{ color: colors.brand, fontWeight: '700' }}>Make a better resume with AI, free</Text>
+            </Pressable>
             <Text style={[k.hint, { marginBottom: 14 }]}>Employers on JobsRack can find you by the job title and city you add here.</Text>
           </>
         )}

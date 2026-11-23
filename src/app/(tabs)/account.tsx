@@ -94,6 +94,7 @@ export default function Account() {
         <Group
           title="Explore"
           rows={[
+            { icon: 'sparkles-outline', title: 'AI resume builder', sub: 'A professional resume in a minute, free', href: '/resume' },
             { icon: 'cash-outline', title: 'Salaries', sub: 'Typical pay by job title', href: '/salaries' },
             { icon: 'business-outline', title: 'Companies', sub: 'Employers hiring now, with reviews', href: '/companies' },
             { icon: 'newspaper-outline', title: 'Career advice', href: '/blog' },
