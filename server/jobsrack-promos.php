@@ -8,7 +8,7 @@ function jr22_play_url() { return 'https://play.google.com/store/apps/details?id
 
 /* ---------- 1. Main menu item ---------- */
 add_filter( 'wp_nav_menu_items', function ( $items ) {
-	if ( is_admin() || false === strpos( $items, '/jobs/' ) || false !== strpos( $items, 'jr22-nav' ) ) return $items;
+	if ( is_admin() || ( false === strpos( $items, '/jobs/' ) && false === strpos( $items, '/about-us/' ) ) || false !== strpos( $items, 'jr22-nav' ) ) return $items;
 	$li = '<li class="menu-item jr22-nav"><a href="' . esc_url( home_url( '/resume-builder/' ) ) . '">AI Resume <span class="jr22-new">New</span></a></li>';
 	$at = strpos( $items, '/about-us/' );
 	if ( false !== $at ) {
@@ -201,7 +201,7 @@ add_action( 'wp_footer', function () {
 
 /* Clear the page cache once after this snippet is installed or updated, so the new menu and banners show. */
 add_action( 'init', function () {
-	$v = 'p3';
+	$v = 'p4';
 	if ( get_option( 'jr22_cache_v' ) === $v ) return;
 	update_option( 'jr22_cache_v', $v, false );
 	if ( isset( $GLOBALS['wp_fastest_cache'] ) && method_exists( $GLOBALS['wp_fastest_cache'], 'deleteCache' ) ) $GLOBALS['wp_fastest_cache']->deleteCache( true );
