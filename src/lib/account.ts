@@ -107,7 +107,10 @@ export const register = (site: SiteCode, f: { role: Role; name: string; email: s
 
 export const forgotPassword = (site: SiteCode, email: string) => call<{ ok: boolean; message: string }>(site, '/auth/forgot', { body: { email }, auth: false });
 
-export const logout = (site: SiteCode) => call<{ ok: boolean }>(site, '/auth/logout', { body: {} }).catch(() => ({ ok: true }));
+export const logout = (site: SiteCode, push?: string | null) => call<{ ok: boolean }>(site, '/auth/logout', { body: push ? { push } : {} }).catch(() => ({ ok: true }));
+
+/** Lets the portal send this phone personal notifications (messages, shortlisted). */
+export const registerMyPush = (site: SiteCode, token: string) => call<{ ok: boolean }>(site, '/me/push', { body: { token } });
 
 export const getMe = (site: SiteCode) => call<User>(site, '/me');
 

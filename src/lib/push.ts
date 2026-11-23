@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { registerMyPush } from './account';
 import { registerPush, type SiteCode } from './api';
 import { getState, setPushOn } from './store';
 
@@ -14,7 +15,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-async function getToken(ask: boolean): Promise<string | null> {
+export async function getToken(ask: boolean): Promise<string | null> {
   if (Platform.OS === 'web' || !Device.isDevice) return null;
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
@@ -54,4 +55,12 @@ export async function syncAlerts(ask = false): Promise<boolean> {
 export async function clearAlerts(site: SiteCode) {
   const token = await getToken(false);
   if (token) await registerPush(site, token, []).catch(() => false);
+}
+
+/** Signed-in users: register this phone for personal notifications. Asks for permission once. */
+export async function syncMyPush() {
+  const a = getState().auth;
+  if (!a) return;
+  const token = await getToken(true);
+  if (token) await registerMyPush(a.site as SiteCode, token).catch(() => {});
 }

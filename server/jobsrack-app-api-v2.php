@@ -173,7 +173,29 @@ function jr19_post_msg( $key, $uid, $text ) {
 		$from  = get_userdata( $uid );
 		wp_mail( $to->user_email, 'New message on ' . get_bloginfo( 'name' ) . ( $job ? ': ' . get_the_title( $job ) : '' ), 'Hello ' . $to->display_name . ",\n\nYou have a new message from " . ( $from ? $from->display_name : 'someone' ) . ' on ' . get_bloginfo( 'name' ) . $about . ":\n\n" . mb_substr( $text, 0, 600 ) . "\n\nReply in the JobsRack app (Account > Messages)" . ( $job ? ' or here: ' . add_query_arg( array( 'job' => $job, 'cand' => $cand ), home_url( '/messages/' ) ) : '' ) . "\n" );
 	}
+	$from_u = get_userdata( $uid );
+	jr19_push( $uid === $cand ? $emp : $cand, 'Message from ' . ( $from_u ? $from_u->display_name : 'JobsRack' ), mb_substr( $text, 0, 160 ), array( 'type' => 'msg', 'thread' => $key ) );
 	return array( 'id' => (int) $pid, 'mine' => true, 'text' => mb_substr( $text, 0, 4000 ), 'time' => time() );
+}
+
+
+/* ---------- Personal push (Expo) ---------- */
+function jr19_push( $uid, $title, $body, $data = array() ) {
+	$toks = get_user_meta( $uid, 'jr19_push', true );
+	if ( ! is_array( $toks ) || ! $toks ) return;
+	$data['site'] = jr19_site();
+	$msgs = array();
+	foreach ( array_keys( $toks ) as $t ) $msgs[] = array( 'to' => $t, 'title' => mb_substr( $title, 0, 80 ), 'body' => mb_substr( $body, 0, 160 ), 'data' => $data, 'sound' => 'default', 'channelId' => 'default' );
+	$r = wp_remote_post( 'https://exp.host/--/api/v2/push/send', array( 'timeout' => 8, 'blocking' => true, 'headers' => array( 'Content-Type' => 'application/json', 'Accept' => 'application/json' ), 'body' => wp_json_encode( $msgs ) ) );
+	if ( is_wp_error( $r ) ) return;
+	$res = json_decode( wp_remote_retrieve_body( $r ), true );
+	if ( empty( $res['data'] ) ) return;
+	$keys = array_keys( $toks );
+	$changed = false;
+	foreach ( $res['data'] as $i => $d ) {
+		if ( isset( $d['details']['error'] ) && 'DeviceNotRegistered' === $d['details']['error'] && isset( $keys[ $i ] ) ) { unset( $toks[ $keys[ $i ] ] ); $changed = true; }
+	}
+	if ( $changed ) update_user_meta( $uid, 'jr19_push', $toks );
 }
 
 /* ---------- Routes ---------- */
@@ -231,15 +253,30 @@ add_action( 'rest_api_init', function () {
 		return array( 'ok' => true, 'message' => 'If there is an account with that email, we have sent a link to set a new password. Please check your inbox and spam folder.' );
 	}, $pub );
 
-	$reg( '/auth/logout', 'POST', function () {
+	$reg( '/auth/logout', 'POST', function ( WP_REST_Request $r ) {
 		$raw = jr19_raw_token();
 		$uid = get_current_user_id();
+		$pt  = (string) $r->get_param( 'push' );
+		$pl  = get_user_meta( $uid, 'jr19_push', true );
+		if ( $pt && is_array( $pl ) && isset( $pl[ $pt ] ) ) { unset( $pl[ $pt ] ); update_user_meta( $uid, 'jr19_push', $pl ); }
 		$l   = get_user_meta( $uid, 'jr19_tokens', true );
 		if ( is_array( $l ) ) { unset( $l[ jr19_tok_hash( $raw ) ] ); update_user_meta( $uid, 'jr19_tokens', $l ); }
 		return array( 'ok' => true );
 	}, 'jr19_auth' );
 
 	$reg( '/me', 'GET', function () { return jr19_user( wp_get_current_user() ); }, 'jr19_auth' );
+
+	$reg( '/me/push', 'POST', function ( WP_REST_Request $r ) {
+		$uid = get_current_user_id();
+		$t   = (string) $r->get_param( 'token' );
+		if ( ! preg_match( '/^Expo(nent)?PushToken\[[A-Za-z0-9_\-]{10,}\]$/', $t ) ) return jr19_err( 'Bad token.' );
+		$toks = get_user_meta( $uid, 'jr19_push', true );
+		if ( ! is_array( $toks ) ) $toks = array();
+		if ( $r->get_param( 'off' ) ) unset( $toks[ $t ] ); else $toks[ $t ] = time();
+		arsort( $toks );
+		update_user_meta( $uid, 'jr19_push', array_slice( $toks, 0, 5, true ) );
+		return array( 'ok' => true );
+	}, 'jr19_auth' );
 
 	$reg( '/me', 'POST', function ( WP_REST_Request $r ) {
 		$u   = wp_get_current_user();
@@ -617,7 +654,9 @@ add_action( 'rest_api_init', function () {
 		$uid = (int) $r['uid'];
 		if ( ! jr19_owner_ok( $job, get_current_user_id() ) || ! in_array( $job, jr19_applied_ids( $uid ), true ) ) return jr19_err( 'This applicant is not on one of your jobs.', 403 );
 		$s = (string) $r->get_param( 'status' );
+		$was = (string) get_user_meta( $uid, 'cs_job_application_status_' . $job, true );
 		update_user_meta( $uid, 'cs_job_application_status_' . $job, 'shortlisted' === $s ? 'shortlisted' : ( 'rejected' === $s ? 'rejected' : '' ) );
+		if ( 'shortlisted' === $s && 'shortlisted' !== $was ) jr19_push( $uid, 'You have been shortlisted 🎉', 'The employer shortlisted you for "' . get_the_title( $job ) . '". They may message or call you soon.', array( 'type' => 'app', 'jobId' => $job ) );
 		return array( 'ok' => true );
 	}, 'jr19_emp_auth' );
 

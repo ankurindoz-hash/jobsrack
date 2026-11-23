@@ -6,6 +6,7 @@ import { Group, k, type RowItem } from '../../components/kit';
 import { Button } from '../../components/ui';
 import { logout } from '../../lib/account';
 import { SITES } from '../../lib/api';
+import { getToken } from '../../lib/push';
 import { setMode, signOutLocal, useStore } from '../../lib/store';
 import { colors, radius } from '../../lib/theme';
 
@@ -32,8 +33,8 @@ export default function Account() {
       {
         text: 'Sign out',
         style: 'destructive',
-        onPress: () => {
-          logout(site);
+        onPress: async () => {
+          await logout(site, await getToken(false).catch(() => null));
           signOutLocal();
           router.replace('/account');
         },

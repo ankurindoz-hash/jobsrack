@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import '../lib/push';
+import { syncMyPush } from '../lib/push';
 import { countOpen } from '../lib/review';
 import { setSite, useHydrated, useStore } from '../lib/store';
 import { colors } from '../lib/theme';
@@ -12,6 +12,7 @@ import { colors } from '../lib/theme';
 export default function RootLayout() {
   const ready = useHydrated();
   const site = useStore((s) => s.site);
+  const authKey = useStore((s) => (s.auth ? `${s.auth.site}:${s.auth.user.id}` : ''));
   const last = Platform.OS === 'web' ? null : Notifications.useLastNotificationResponse();
 
   useEffect(() => {
@@ -22,10 +23,18 @@ export default function RootLayout() {
     if (ready) countOpen();
   }, [ready]);
 
-  // Open the job from a tapped job-alert notification
+  // Signed in: let the portal notify this phone about messages and shortlisting
   useEffect(() => {
-    const data = last?.notification?.request?.content?.data as { site?: string; jobId?: number } | undefined;
-    if (!ready || !data?.jobId) return;
+    if (ready && authKey && Platform.OS !== 'web') syncMyPush();
+  }, [ready, authKey]);
+
+  // Open what a tapped notification is about
+  useEffect(() => {
+    const data = last?.notification?.request?.content?.data as { site?: string; jobId?: number; type?: string; thread?: string } | undefined;
+    if (!ready || !data) return;
+    if (data.type === 'msg' && data.thread) return void router.push({ pathname: '/messages/[id]', params: { id: data.thread } });
+    if (data.type === 'app') return void router.push('/me/applications');
+    if (!data.jobId) return;
     if (data.site && data.site !== site && ['ca', 'in', 'au', 'gl'].includes(data.site)) setSite(data.site as any);
     router.push({ pathname: '/job/[id]', params: { id: String(data.jobId), site: data.site ?? '' } });
   }, [last, ready]); // eslint-disable-line react-hooks/exhaustive-deps
