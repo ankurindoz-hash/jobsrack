@@ -1,36 +1,48 @@
 # JobsRack store listing
 
-## App name
-JobsRack: Jobs Near You
+## App name (Google Play, keyword-optimized)
+JobsRack: Job Search & Hiring
 
 ## Subtitle (Apple, 30 characters max)
 Search, save and apply fast
 
 ## Short description (Google, 80 characters max)
-Find jobs in Canada, India and Australia. Apply in a minute, no account needed.
+Find jobs near you: full time, part time & remote. Apply in 1 minute, free.
 
 ## Full description
-JobsRack helps you find your next job in Canada, India, Australia or anywhere in the world.
+JobsRack is a free job search app that helps you find jobs near you and apply in about a minute. Search real jobs from real employers in Canada, India, Australia and worldwide, see the pay up front, and apply right from your phone. No account needed to start.
 
-Search real jobs from real employers, see the pay up front, and apply in about a minute, right from your phone. No account needed.
+Looking for full time jobs, part time jobs, remote jobs, work from home jobs or your first job? JobsRack shows you the latest job openings in your city, with salary, job type and company on every listing.
 
-WHY JOBSRACK
-• Pay shown on every job, so you know what to expect before you apply
-• Apply in a minute: your name, email, phone and resume, that's it
-• Save jobs and read them later, even without internet
-• Job alerts: get a notification when new jobs match your search
+WHY JOB SEEKERS USE JOBSRACK
+• Jobs near me: search jobs by job title, city or category
+• Pay shown on every job, so you know the salary before you apply
+• Quick apply: name, email, phone and resume, that's it
+• Job alerts: get notified when new jobs match your search
+• Save jobs and read them later, even offline
 • Clear badges: Urgently hiring, Hiring multiple people, New, Verified employer
-• Schedule and benefits at a glance
-• Canada: see whether a job is a current vacancy and whether the employer uses AI to screen applicants
+• Shift, schedule and benefits at a glance
 
-MORE FROM JOBSRACK
+FIND THE RIGHT JOB
+Browse jobs in every field: customer service, sales, retail, warehouse, driver and delivery jobs, healthcare and PSW jobs, nursing, IT and software jobs, accounting, admin and office jobs, construction, hospitality, education, engineering and more. Find entry level jobs, student jobs, weekend jobs, evening shifts and remote work.
+
+JOBS BY COUNTRY
+• Canada: jobs in Toronto, Brampton, Mississauga, Vancouver, Calgary, Edmonton, Ottawa, Montreal, Winnipeg and across Canada. See whether a job is a current vacancy and whether the employer uses AI to screen applicants.
+• India: jobs in Delhi NCR, Mumbai, Bangalore, Hyderabad, Chennai, Pune, Chandigarh, Mohali and more.
+• Australia: jobs in Sydney, Melbourne, Brisbane, Perth, Adelaide and more.
+• Global: international and remote jobs worldwide.
+
+MORE THAN A JOB BOARD
 • Salaries: typical pay by job title and city
-• Companies: every employer hiring now, with reviews from people who worked there
+• Companies: see every employer hiring now, with reviews from people who worked there
 • Messages: employers can reply to you directly
 
-Pick your country when you open the app: Canada, India, Australia or Global. You can switch any time.
+Pick your country when you open the app and switch any time.
 
-Employers: post jobs at jobsrack.com.
+EMPLOYERS
+Hiring? Post jobs for free at jobsrack.com and reach job seekers near your business.
+
+Start your job search today with JobsRack.
 
 ## Keywords (Apple, 100 characters max)
 jobs,job search,careers,hiring,work,employment,resume,apply,Canada jobs,India jobs,Australia jobs
