@@ -153,6 +153,11 @@ function jr21_pay_check( $title, $city, $amount, $period ) {
 	return array( 'n' => $s['n'], 'local' => count( $local ) >= 3, 'med' => $s['med'], 'min' => $s['min'], 'max' => $s['max'], 'year' => $year, 'pct' => $pct );
 }
 add_shortcode( 'jr_pay_checker', function () {
+	if ( 'gl' === jr21_site() ) {
+		$h = jr21_css() . '<div class="jr21"><p class="lead">Pay is different in every country, so the pay checker works on each country site. Choose yours:</p><div class="more">';
+		foreach ( array( 'ca' => 'Canada', 'in' => 'India', 'au' => 'Australia' ) as $k => $l ) $h .= '<a href="https://' . $k . '.jobsrack.com/pay-checker/">Am I paid fairly in ' . $l . '?</a>';
+		return $h . '</div></div>';
+	}
 	if ( ! function_exists( 'jr3_money' ) ) return '<p>Coming soon.</p>';
 	$in     = 'in' === jr21_site();
 	$t      = sanitize_text_field( wp_unslash( $_GET['t'] ?? '' ) );
