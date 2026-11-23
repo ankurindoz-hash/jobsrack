@@ -198,3 +198,11 @@ add_action( 'wp_footer', function () {
 	echo '<div id="jr22-pop" style="display:none"><div style="max-width:1170px;margin:0 auto;padding:16px 15px;font-size:14px;line-height:2"><b style="margin-right:8px">Popular:</b>' . implode( ' <span style="color:#98a2b3">·</span> ', $links ) . '</div></div>';
 	echo '<script>(function(){var p=document.getElementById("jr22-pop"),f=document.querySelector("footer");if(p&&f){p.style.display="";p.style.background="#f9fafb";p.style.borderTop="1px solid #eaecf0";f.parentNode.insertBefore(p,f)}})();</script>';
 }, 60 );
+
+/* Clear the page cache once after this snippet is installed or updated, so the new menu and banners show. */
+add_action( 'init', function () {
+	$v = 'p3';
+	if ( get_option( 'jr22_cache_v' ) === $v ) return;
+	update_option( 'jr22_cache_v', $v, false );
+	if ( isset( $GLOBALS['wp_fastest_cache'] ) && method_exists( $GLOBALS['wp_fastest_cache'], 'deleteCache' ) ) $GLOBALS['wp_fastest_cache']->deleteCache( true );
+}, 99 );
