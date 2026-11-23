@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../../components/ui';
 import { applyWithSavedResume } from '../../lib/account';
+import { askForReview } from '../../lib/review';
 import { applyToJob, getJob, type JobDetail, type SiteCode } from '../../lib/api';
 import { getState, markApplied, setProfile } from '../../lib/store';
 import { colors, radius } from '../../lib/theme';
@@ -74,6 +75,7 @@ export default function Apply() {
     setBusy(false);
     if (r.ok) {
       markApplied(site, id);
+      askForReview();
       setDone(r.msg || 'Application sent!');
     } else {
       setErr(r.msg || 'Could not send. Please try again.');

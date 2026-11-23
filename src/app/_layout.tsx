@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '../lib/push';
+import { countOpen } from '../lib/review';
 import { setSite, useHydrated, useStore } from '../lib/store';
 import { colors } from '../lib/theme';
 
@@ -16,6 +17,10 @@ export default function RootLayout() {
   useEffect(() => {
     if (ready && !site) router.replace('/welcome');
   }, [ready, site]);
+
+  useEffect(() => {
+    if (ready) countOpen();
+  }, [ready]);
 
   // Open the job from a tapped job-alert notification
   useEffect(() => {

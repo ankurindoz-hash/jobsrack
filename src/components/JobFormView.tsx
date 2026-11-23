@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { employerJob, saveJob, taxonomies, type JobForm, type Taxonomies } from '../lib/account';
+import { askForReview } from '../lib/review';
 import { useStore } from '../lib/store';
 import { colors } from '../lib/theme';
 import { Choice, ErrorText, Field, k, Loading } from './kit';
@@ -47,6 +48,7 @@ export function JobFormView({ id }: { id?: number }) {
     try {
       const r = await saveJob(site, { ...f, title: f.title.trim(), description: f.description.trim(), city: f.city.trim(), apply_email: f.apply_email.trim() }, id);
       setDone(r.message);
+      if (!id) askForReview();
       if (!id) setF({ ...EMPTY, apply_email: f.apply_email, city: f.city, pay_period: f.pay_period });
     } catch (e: any) {
       setErr(e.message);
