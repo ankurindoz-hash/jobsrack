@@ -7,7 +7,7 @@ import { Button } from '../../components/ui';
 import { applyWithSavedResume } from '../../lib/account';
 import { askForReview } from '../../lib/review';
 import { applyToJob, getJob, type JobDetail, type SiteCode } from '../../lib/api';
-import { getState, markApplied, setProfile } from '../../lib/store';
+import { getState, markApplied, setProfile, useStore } from '../../lib/store';
 import { colors, radius } from '../../lib/theme';
 
 type Resume = { uri: string; name: string; mimeType?: string; size?: number; file?: any };
@@ -17,8 +17,9 @@ export default function Apply() {
   const site = (p.site || getState().site) as SiteCode;
   const id = Number(p.id);
   const prof = getState().profile;
-  const auth = getState().auth;
-  const savedResume = auth && auth.site === site ? auth.user.resume_name : '';
+  const auth = useStore((st) => st.auth);
+  const signedIn = !!auth && auth.site === site && auth.user.role === 'candidate';
+  const savedResume = signedIn ? auth!.user.resume_name : '';
   const [job, setJob] = useState<JobDetail | null>(null);
   const [name, setName] = useState(prof.name);
   const [email, setEmail] = useState(prof.email);
@@ -30,6 +31,15 @@ export default function Apply() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState('');
+
+  // After signing in from this screen, fill in their details.
+  useEffect(() => {
+    if (signedIn && auth) {
+      setName(auth.user.name);
+      setEmail(auth.user.email);
+      if (auth.user.phone) setPhone(auth.user.phone);
+    }
+  }, [signedIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     getJob(site, id)
@@ -99,7 +109,18 @@ export default function Apply() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <Text style={st.job}>{job.title}</Text>
         {!!job.company && <Text style={st.co}>{job.company}</Text>}
-        <Text style={st.note}>No account needed. Takes about a minute.</Text>
+        {signedIn ? (
+          <Text style={st.note}>
+            Applying as {auth!.user.name} · {auth!.user.email}
+          </Text>
+        ) : (
+          <Text style={st.note}>
+            No account needed. Takes about a minute.{'\n'}Already have an account?{' '}
+            <Text style={{ color: colors.brand, fontWeight: '700' }} onPress={() => router.push({ pathname: '/auth/login', params: { next: 'back' } })}>
+              Sign in
+            </Text>
+          </Text>
+        )}
 
         <Text style={st.label}>Full name *</Text>
         <TextInput style={st.input} value={name} onChangeText={setName} autoComplete="name" textContentType="name" placeholder="Your full name" placeholderTextColor="#98A2B3" />
@@ -139,7 +160,9 @@ export default function Apply() {
         <Pressable onPress={() => setAgree(!agree)} style={st.agree} accessibilityRole="checkbox" accessibilityState={{ checked: agree }}>
           <Ionicons name={agree ? 'checkbox' : 'square-outline'} size={22} color={colors.brand} />
           <Text style={st.agreeText}>
-            I agree that JobsRack shares my application with this employer and creates a free account for me so I can track it.{' '}
+            {signedIn
+              ? 'I agree that JobsRack shares my application with this employer. '
+              : 'I agree that JobsRack shares my application with this employer. If I already have an account with this email, it is added there; if not, a free account is made so I can track it. '}
             <Text style={{ color: colors.brand }} onPress={() => router.push('/page/privacy-policy')}>
               Privacy policy
             </Text>

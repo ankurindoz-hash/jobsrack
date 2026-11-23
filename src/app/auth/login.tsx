@@ -10,7 +10,7 @@ import { colors } from '../../lib/theme';
 
 export default function Login() {
   const site = useStore((s) => s.site)!;
-  const p = useLocalSearchParams<{ role?: string }>();
+  const p = useLocalSearchParams<{ role?: string; next?: string }>();
   const [id, setId] = useState('');
   const [pw, setPw] = useState('');
   const [busy, setBusy] = useState(false);
@@ -23,6 +23,7 @@ export default function Login() {
     try {
       const r = await login(site, id.trim(), pw);
       setAuth(r.token, r.user, site);
+      if (p.next === 'back' && router.canGoBack()) return router.back();
       router.dismissAll();
       router.replace(r.user.role === 'employer' ? '/dashboard' : '/account');
     } catch (e: any) {
