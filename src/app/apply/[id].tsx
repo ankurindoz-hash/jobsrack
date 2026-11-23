@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from '../../components/ui';
-import { applyToJob, getJob, SITES, type JobDetail, type SiteCode } from '../../lib/api';
+import { applyWithSavedResume } from '../../lib/account';
+import { applyToJob, getJob, type JobDetail, type SiteCode } from '../../lib/api';
 import { getState, markApplied, setProfile } from '../../lib/store';
 import { colors, radius } from '../../lib/theme';
 
@@ -16,6 +16,8 @@ export default function Apply() {
   const site = (p.site || getState().site) as SiteCode;
   const id = Number(p.id);
   const prof = getState().profile;
+  const auth = getState().auth;
+  const savedResume = auth && auth.site === site ? auth.user.resume_name : '';
   const [job, setJob] = useState<JobDetail | null>(null);
   const [name, setName] = useState(prof.name);
   const [email, setEmail] = useState(prof.email);
@@ -58,12 +60,17 @@ export default function Apply() {
     if (name.trim().length < 2) return setErr('Please enter your full name.');
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErr('Please enter a valid email address.');
     if (phone.replace(/\D/g, '').length < 7) return setErr('Please enter a valid phone number.');
-    if (!resume) return setErr('Please attach your resume.');
+    if (!resume && !savedResume) return setErr('Please attach your resume.');
     if (answers.some((a) => !a.trim())) return setErr("Please answer all the employer's questions.");
     if (!agree) return setErr('Please tick the box to agree to share your application.');
     setBusy(true);
     setProfile({ name: name.trim(), email: email.trim(), phone: phone.trim() });
-    const r = await applyToJob({ site, jobId: id, name: name.trim(), email: email.trim(), phone: phone.trim(), message: message.trim(), answers, resume });
+    const r =
+      !resume && savedResume
+        ? await applyWithSavedResume(site, id, message.trim(), answers)
+            .then((x) => ({ ok: x.ok, msg: x.msg }))
+            .catch((e) => ({ ok: false, msg: e.message as string }))
+        : await applyToJob({ site, jobId: id, name: name.trim(), email: email.trim(), phone: phone.trim(), message: message.trim(), answers, resume, token: auth && auth.site === site ? auth.token : undefined });
     setBusy(false);
     if (r.ok) {
       markApplied(site, id);
@@ -101,9 +108,9 @@ export default function Apply() {
 
         <Text style={st.label}>Resume *</Text>
         <Pressable onPress={pick} style={st.file} accessibilityRole="button">
-          <Ionicons name={resume ? 'document-attach' : 'cloud-upload-outline'} size={22} color={colors.brand} />
+          <Ionicons name={resume || savedResume ? 'document-attach' : 'cloud-upload-outline'} size={22} color={colors.brand} />
           <Text style={st.fileText} numberOfLines={1}>
-            {resume ? resume.name : 'Choose your resume (PDF or Word, up to 5 MB)'}
+            {resume ? resume.name : savedResume ? `Use my saved resume: ${savedResume}` : 'Choose your resume (PDF or Word, up to 5 MB)'}
           </Text>
         </Pressable>
 
@@ -131,7 +138,7 @@ export default function Apply() {
           <Ionicons name={agree ? 'checkbox' : 'square-outline'} size={22} color={colors.brand} />
           <Text style={st.agreeText}>
             I agree that JobsRack shares my application with this employer and creates a free account for me so I can track it.{' '}
-            <Text style={{ color: colors.brand }} onPress={() => WebBrowser.openBrowserAsync(`${SITES[site].host}/privacy-policy/`)}>
+            <Text style={{ color: colors.brand }} onPress={() => router.push('/page/privacy-policy')}>
               Privacy policy
             </Text>
           </Text>

@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Badge, Button, Empty, Pay } from '../../components/ui';
+import { companyByName } from '../../lib/account';
 import { getJob, htmlToBlocks, timeAgo, type JobDetail, type SiteCode } from '../../lib/api';
+import { openInApp } from '../../lib/nav';
 import { getState, hasApplied, isSaved, toggleSaved, useStore } from '../../lib/store';
 import { colors, radius } from '../../lib/theme';
 
@@ -45,9 +46,13 @@ export default function JobScreen() {
   }
 
   const apply = () => {
-    if (job.apply_url) WebBrowser.openBrowserAsync(job.apply_url);
+    if (job.apply_url) openInApp(job.apply_url, job.company || 'Apply');
     else router.push({ pathname: '/apply/[id]', params: { id: String(job.id), site } });
   };
+  const openCompany = () =>
+    companyByName(site, job.company)
+      .then((c) => router.push({ pathname: '/companies/[id]', params: { id: String(c.id) } }))
+      .catch(() => {});
   const share = () => Share.share({ message: `${job.title}${job.company ? ` at ${job.company}` : ''} – ${job.url}`, url: job.url });
   const hl = job.highlights;
 
@@ -72,7 +77,7 @@ export default function JobScreen() {
         {!!error && <Text style={st.offline}>You are offline. Showing your saved copy.</Text>}
         <Text style={st.title}>{job.title}</Text>
         {!!job.company && (
-          <Pressable disabled={!job.company_url} onPress={() => WebBrowser.openBrowserAsync(job.company_url)}>
+          <Pressable onPress={openCompany}>
             <Text style={st.company}>{job.company}</Text>
           </Pressable>
         )}
@@ -146,9 +151,6 @@ export default function JobScreen() {
             )}
           </View>
         )}
-        <Pressable onPress={() => WebBrowser.openBrowserAsync(job.url)} style={{ marginTop: 14 }}>
-          <Text style={st.link}>View on the website</Text>
-        </Pressable>
       </ScrollView>
       <SafeAreaView edges={['bottom']} style={st.bar}>
         {applied ? (

@@ -446,7 +446,7 @@ add_action( 'rest_api_init', function () {
 		$slug = (string) $r['slug'];
 		$p    = get_page_by_path( $slug );
 		if ( ! $p && 'privacy-policy' === $slug ) $p = get_post( (int) get_option( 'wp_page_for_privacy_policy' ) );
-		if ( ! $p && 'terms-and-policies' === $slug ) $p = get_page_by_path( 'terms-and-conditions' ) ?: get_page_by_path( 'terms' );
+		if ( ! $p && in_array( $slug, array( 'terms-and-policies', 'terms-of-use' ), true ) ) $p = get_page_by_path( 'terms-of-use' ) ?: get_page_by_path( 'terms-and-policies' ) ?: get_page_by_path( 'terms-and-conditions' ) ?: get_page_by_path( 'terms' );
 		if ( ! $p || 'publish' !== $p->post_status ) return jr19_err( 'This page is not available.', 404 );
 		return array( 'title' => html_entity_decode( get_the_title( $p ), ENT_QUOTES ), 'content' => wpautop( strip_shortcodes( $p->post_content ) ) );
 	}, $pub );

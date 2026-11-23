@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import type { JobCard, SiteCode } from './api';
+import type { User } from './account';
 
 type Alert = { q: string; loc: string };
 type Profile = { name: string; email: string; phone: string };
@@ -12,10 +13,12 @@ type State = {
   pushOn: boolean;
   profile: Profile;
   applied: string[];
+  auth: { token: string; user: User; site: SiteCode } | null;
+  mode: 'seeker' | 'employer';
 };
 
 const KEY = 'jobsrack:v1';
-let state: State = { ready: false, site: null, saved: [], alerts: [], pushOn: false, profile: { name: '', email: '', phone: '' }, applied: [] };
+let state: State = { ready: false, site: null, saved: [], alerts: [], pushOn: false, profile: { name: '', email: '', phone: '' }, applied: [], auth: null, mode: 'seeker' };
 const subs = new Set<() => void>();
 
 function emit() {
@@ -50,7 +53,14 @@ export function useStore<T>(pick: (s: State) => T): T {
 }
 export const getState = () => state;
 
-export const setSite = (site: SiteCode) => set({ site, alerts: [] });
+// Accounts are per country site, so switching country signs you out of the old one.
+export const setSite = (site: SiteCode) => set({ site, alerts: [], ...(state.auth && state.auth.site !== site ? { auth: null, mode: 'seeker' as const } : {}) });
+export function setAuth(token: string, user: User, site: SiteCode) {
+  set({ auth: { token, user, site }, mode: user.role === 'employer' ? 'employer' : 'seeker', profile: { name: user.name || state.profile.name, email: user.email || state.profile.email, phone: user.phone || state.profile.phone } });
+}
+export const setUser = (user: User) => state.auth && set({ auth: { ...state.auth, user } });
+export const signOutLocal = () => set({ auth: null, mode: 'seeker' });
+export const setMode = (mode: 'seeker' | 'employer') => set({ mode });
 export const setProfile = (profile: Profile) => set({ profile });
 export const setPushOn = (pushOn: boolean) => set({ pushOn });
 

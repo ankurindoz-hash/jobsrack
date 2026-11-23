@@ -119,7 +119,6 @@ export default function Jobs() {
             <View style={st.listHead}>
               <Text style={st.count}>
                 {label}
-                {total ? <Text style={st.countN}> · {total.toLocaleString()} jobs</Text> : null}
               </Text>
               {(active.current.q || active.current.loc) && total > 0 ? (
                 <Pressable onPress={saveAlert} style={st.alertBtn} accessibilityRole="button">

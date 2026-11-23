@@ -109,7 +109,8 @@ export type ApplyInput = {
   phone: string;
   message: string;
   answers: string[];
-  resume: { uri: string; name: string; mimeType?: string; file?: any };
+  resume: { uri: string; name: string; mimeType?: string; file?: any } | null;
+  token?: string;
 };
 
 export async function applyToJob(i: ApplyInput): Promise<{ ok: boolean; msg: string }> {
@@ -123,12 +124,14 @@ export async function applyToJob(i: ApplyInput): Promise<{ ok: boolean; msg: str
   fd.append('phone', i.phone);
   fd.append('cover_letter', i.message);
   i.answers.forEach((a, n) => fd.append(`jr_q[${n}]`, a));
-  if (i.resume.file) {
+  if (i.resume?.file) {
     fd.append('media_upload', i.resume.file, i.resume.name);
-  } else {
+  } else if (i.resume) {
     fd.append('media_upload', { uri: i.resume.uri, name: i.resume.name, type: i.resume.mimeType || 'application/pdf' } as any);
   }
   try {
+    // Signed-in job seekers: the application is linked to their account so it shows in "My applications".
+    if (i.token) fd.append('jr_app_token', i.token);
     const r = await fetch(`${SITES[i.site].host}/wp-admin/admin-ajax.php`, { method: 'POST', body: fd });
     const j = await r.json();
     return { ok: Number(j.status) === 1, msg: String(j.msg || '') };

@@ -47,6 +47,10 @@ export default function RootLayout() {
         <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="job/[id]" options={{ title: 'Job details' }} />
         <Stack.Screen name="apply/[id]" options={{ title: 'Apply', presentation: 'modal' }} />
+        <Stack.Screen name="auth/login" options={{ title: 'Sign in', presentation: 'modal' }} />
+        <Stack.Screen name="auth/register" options={{ title: 'Create account', presentation: 'modal' }} />
+        <Stack.Screen name="auth/forgot" options={{ title: 'Reset password' }} />
+        <Stack.Screen name="web" options={{ title: '' }} />
       </Stack>
     </SafeAreaProvider>
   );
