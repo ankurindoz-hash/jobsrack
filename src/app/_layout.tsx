@@ -66,6 +66,8 @@ export default function RootLayout() {
         <Stack.Screen name="auth/forgot" options={{ title: 'Reset password' }} />
         <Stack.Screen name="web" options={{ title: '' }} />
         <Stack.Screen name="resume" options={{ title: 'AI resume builder' }} />
+        <Stack.Screen name="pay-checker" options={{ title: 'Am I paid fairly?' }} />
+        <Stack.Screen name="collection/[k]" options={{ title: '' }} />
       </Stack>
     </SafeAreaProvider>
   );

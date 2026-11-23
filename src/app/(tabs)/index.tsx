@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Empty, JobRow } from '../../components/ui';
+import { collections, type Collection } from '../../lib/account';
 import { searchJobs, SITES, type JobCard } from '../../lib/api';
 import { syncAlerts } from '../../lib/push';
 import { addAlert, useStore } from '../../lib/store';
@@ -22,6 +23,13 @@ export default function Jobs() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [alertMsg, setAlertMsg] = useState('');
+  const [cols, setCols] = useState<Collection[]>([]);
+  useEffect(() => {
+    if (!site) return;
+    collections(site)
+      .then(setCols)
+      .catch(() => setCols([]));
+  }, [site]);
   const active = useRef({ q: params.q ?? '', loc: params.loc ?? '' });
   const reqId = useRef(0);
 
@@ -117,6 +125,18 @@ export default function Jobs() {
         ListHeaderComponent={
           items.length || loading ? (
             <View style={st.listHead}>
+              {cols.length > 0 && !active.current.q && !active.current.loc && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 10 }} style={{ marginHorizontal: -16, paddingHorizontal: 16 }}>
+                  {cols.map((c) => (
+                    <Pressable key={c.k} onPress={() => router.push({ pathname: '/collection/[k]', params: { k: c.k, title: c.title } })} style={st.colChip} accessibilityRole="button">
+                      <Text style={st.colText}>{c.title}</Text>
+                    </Pressable>
+                  ))}
+                  <Pressable onPress={() => router.push('/pay-checker')} style={st.colChip} accessibilityRole="button">
+                    <Text style={st.colText}>Am I paid fairly?</Text>
+                  </Pressable>
+                </ScrollView>
+              )}
               <Text style={st.count}>
                 {label}
               </Text>
@@ -155,6 +175,8 @@ const st = StyleSheet.create({
   field: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 8 },
   input: { flex: 1, fontSize: 16, paddingVertical: 12, color: colors.ink },
   listHead: { paddingHorizontal: 16, paddingBottom: 8 },
+  colChip: { borderWidth: 1, borderColor: colors.brand, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: '#fff' },
+  colText: { color: colors.brand, fontWeight: '600', fontSize: 13 },
   count: { fontSize: 15, fontWeight: '700', color: colors.ink },
   countN: { fontWeight: '400', color: colors.muted },
   alertBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: colors.brand, backgroundColor: '#fff' },

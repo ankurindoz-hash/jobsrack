@@ -192,3 +192,26 @@ export const resumePdf = (site: SiteCode, resume: ResumeDoc, save = false) => ca
 /* ---------- Job extras: verified employer, report a job ---------- */
 export const jobExtra = (site: SiteCode, id: number) => call<{ verified: boolean }>(site, `/job/${id}/extra`);
 export const reportJob = (site: SiteCode, id: number, reason: string, details: string) => call<{ ok: boolean; message: string }>(site, `/job/${id}/report`, { body: { reason, details } });
+
+/* ---------- Job collections and pay checker ---------- */
+export type Collection = { k: string; title: string; intro: string };
+export const collections = (site: SiteCode) => call<Collection[]>(site, '/collections');
+export const collection = (site: SiteCode, k: string, page = 1) => call<{ title: string; intro: string; jobs: JobCard[]; more: boolean }>(site, `/collection/${k}?page=${page}`);
+export type PayResult = {
+  available: boolean;
+  titles?: string[];
+  n?: number;
+  local?: boolean;
+  pct?: number;
+  verdict?: 'high' | 'average' | 'low';
+  min?: string;
+  med?: string;
+  max?: string;
+  you_pos?: number;
+  med_pos?: number;
+  jobs?: JobCard[];
+  share?: string;
+};
+export const payTitles = (site: SiteCode) => call<PayResult>(site, '/pay-check');
+export const payCheck = (site: SiteCode, t: string, c: string, a: string, per: string) =>
+  call<PayResult>(site, `/pay-check?t=${encodeURIComponent(t)}&c=${encodeURIComponent(c)}&a=${encodeURIComponent(a)}&per=${per}`);

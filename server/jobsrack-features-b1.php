@@ -261,3 +261,54 @@ add_filter( 'rest_request_after_callbacks', function ( $res, $handler, $req ) {
 	if ( $resp ) { $res->set_data( $data ); return $res; }
 	return $data;
 }, 10, 3 );
+
+/* ---------- 5. App: job collections and the pay checker ---------- */
+add_action( 'rest_api_init', function () {
+	register_rest_route( 'jobsrack/v1', '/collections', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => function () {
+		$o = array();
+		foreach ( jr21_collections() as $slug => $c ) $o[] = array( 'k' => $c['k'], 'title' => $c['h'], 'intro' => $c['intro'] );
+		return $o;
+	} ) );
+	register_rest_route( 'jobsrack/v1', '/collection/(?P<k>[a-z]+)', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => function ( WP_REST_Request $r ) {
+		$k    = (string) $r['k'];
+		$me   = null;
+		foreach ( jr21_collections() as $c ) if ( $c['k'] === $k ) $me = $c;
+		if ( ! $me ) return new WP_Error( 'jr', 'Not found', array( 'status' => 404 ) );
+		$all  = jr21_collection_jobs( $k );
+		$page = max( 1, (int) $r->get_param( 'page' ) );
+		$per  = 20;
+		$jobs = array_map( function ( $x ) { return jr19_card( $x['id'] ); }, array_slice( $all, ( $page - 1 ) * $per, $per ) );
+		return array( 'title' => $me['h'], 'intro' => $me['intro'], 'jobs' => $jobs, 'more' => $page * $per < count( $all ) );
+	} ) );
+	register_rest_route( 'jobsrack/v1', '/pay-check', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => function ( WP_REST_Request $r ) {
+		if ( 'gl' === jr21_site() || ! function_exists( 'jr3_jobs' ) ) return array( 'available' => false );
+		$t = sanitize_text_field( (string) $r->get_param( 't' ) );
+		if ( '' === $t ) {
+			$titles = array();
+			foreach ( jr3_jobs() as $x ) if ( $x['p'] > 0 && '' !== $x['n'] ) $titles[ $x['n'] ] = ( $titles[ $x['n'] ] ?? 0 ) + 1;
+			arsort( $titles );
+			return array( 'available' => true, 'titles' => array_slice( array_keys( $titles ), 0, 300 ) );
+		}
+		$c   = sanitize_text_field( (string) $r->get_param( 'c' ) );
+		$a   = (float) $r->get_param( 'a' );
+		$per = sanitize_key( (string) $r->get_param( 'per' ) );
+		if ( ! in_array( $per, array( 'hour', 'day', 'week', 'month', 'year' ), true ) ) $per = 'hour';
+		if ( $a <= 0 ) return new WP_Error( 'jr', 'Please enter your pay.', array( 'status' => 400 ) );
+		$res = jr21_pay_check( $t, $c, $a, $per );
+		if ( ! $res || ! $res['n'] ) return array( 'available' => true, 'n' => 0 );
+		$unit = 'in' === jr21_site() ? 'month' : 'hour';
+		$n    = function_exists( 'jr3_norm_title' ) ? jr3_norm_title( $t ) : $t;
+		$jobs = array_filter( jr3_jobs(), function ( $x ) use ( $res, $n ) { return $x['p'] > $res['year'] && ( $x['n'] === $n || false !== stripos( $x['n'], $n ) ); } );
+		usort( $jobs, function ( $x, $y ) { return $y['p'] <=> $x['p']; } );
+		$span = max( 1, $res['max'] - $res['min'] );
+		return array(
+			'available' => true, 'n' => $res['n'], 'local' => $res['local'], 'pct' => $res['pct'],
+			'verdict' => $res['pct'] >= 60 ? 'high' : ( $res['pct'] >= 35 ? 'average' : 'low' ),
+			'min' => jr3_money( $res['min'], $unit ), 'med' => jr3_money( $res['med'], $unit ), 'max' => jr3_money( $res['max'], $unit ), 'unit' => $unit,
+			'you_pos' => round( max( 0, min( 100, ( $res['year'] - $res['min'] ) / $span * 100 ) ), 1 ),
+			'med_pos' => round( max( 0, min( 100, ( $res['med'] - $res['min'] ) / $span * 100 ) ), 1 ),
+			'jobs' => array_map( function ( $x ) { return jr19_card( $x['id'] ); }, array_slice( $jobs, 0, 8 ) ),
+			'share' => home_url( '/pay-checker/' ),
+		);
+	} ) );
+} );
