@@ -38,7 +38,7 @@ add_filter( 'determine_current_user', function ( $uid ) {
 }, 30 );
 
 // Let the token header through browser CORS checks (web preview of the app).
-add_filter( 'rest_allowed_cors_headers', function ( $h ) { $h[] = 'X-JR-Token'; return $h; } );
+add_filter( 'rest_allowed_cors_headers', function ( $h ) { $h[] = 'X-JR-Token'; $h[] = 'X-JR-App'; return $h; } );
 
 /* ---------- Helpers ---------- */
 function jr19_err( $msg, $code = 400 ) { return new WP_Error( 'jr', $msg, array( 'status' => $code ) ); }

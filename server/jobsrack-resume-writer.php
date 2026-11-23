@@ -10,6 +10,11 @@ add_action( 'admin_menu', function () {
 			if ( '' !== $k && false === strpos( $k, '•' ) ) update_option( 'jr20_ai_key', $k, false );
 			if ( ! empty( $_POST['jr20_clear'] ) ) delete_option( 'jr20_ai_key' );
 			update_option( 'jr20_ai_daily', max( 0, (int) ( $_POST['jr20_daily'] ?? 300 ) ), false );
+			$sk = trim( (string) wp_unslash( $_POST['jr20_stripe'] ?? '' ) );
+			if ( '' !== $sk && preg_match( '/^(sk|rk)_(live|test)_[A-Za-z0-9]+$/', $sk ) ) update_option( 'jr20_stripe_key', $sk, false );
+			if ( ! empty( $_POST['jr20_stripe_clear'] ) ) delete_option( 'jr20_stripe_key' );
+			update_option( 'jr20_paid', empty( $_POST['jr20_paid'] ) ? 'no' : 'yes', false );
+			update_option( 'jr20_price', max( 0, (float) ( $_POST['jr20_price'] ?? 0 ) ), false );
 			echo '<div class="updated"><p>Saved.</p></div>';
 		}
 		$k     = (string) get_option( 'jr20_ai_key', '' );
@@ -25,7 +30,14 @@ add_action( 'admin_menu', function () {
 			<?php if ( $k ) : ?><label><input type="checkbox" name="jr20_clear" value="1"> Remove the saved key</label><?php endif; ?></td></tr>
 		<tr><th>Daily limit (whole site)</th><td><input type="number" name="jr20_daily" value="<?php echo (int) get_option( 'jr20_ai_daily', 300 ); ?>" min="0" class="small-text"> resumes per day
 			<p class="description">Caps your AI cost. Each person can also make at most 5 a day.</p></td></tr>
-		<tr><th>Usage</th><td>Today: <?php echo $used; ?> · All time: <?php echo $total; ?></td></tr>
+		<?php $sk = (string) get_option( 'jr20_stripe_key', '' ); $cur = jr20_currency(); ?>
+		<tr><th>Charge for resumes (website)</th><td><label><input type="checkbox" name="jr20_paid" value="1" <?php checked( jr20_paid() ); ?>> People pay before the AI writes their resume</label>
+			<p class="description">One payment = up to 3 tries (to change details) within 7 days, and unlimited PDF downloads.</p></td></tr>
+		<tr><th>Price</th><td><?php echo esc_html( strtoupper( $cur ) ); ?> <input type="number" step="0.01" min="0.5" name="jr20_price" value="<?php echo esc_attr( jr20_price() ); ?>" class="small-text"></td></tr>
+		<tr><th>Stripe secret key</th><td><input type="password" name="jr20_stripe" autocomplete="off" class="regular-text" placeholder="<?php echo $sk ? esc_attr( 'Saved: ' . substr( $sk, 0, 8 ) . '••••' . substr( $sk, -4 ) ) : 'sk_live_… or rk_live_…'; ?>">
+			<p class="description">Stripe Dashboard → Developers → API keys. A restricted key with only "Checkout Sessions: Write" is safest. Payments go to your Stripe account.</p>
+			<?php if ( $sk ) : ?><label><input type="checkbox" name="jr20_stripe_clear" value="1"> Remove the saved key</label><?php endif; ?></td></tr>
+		<tr><th>Usage</th><td>Today: <?php echo $used; ?> · All time: <?php echo $total; ?> · Paid: <?php echo (int) get_option( 'jr20_paid_count', 0 ); ?></td></tr>
 		</table><p><button class="button button-primary" name="jr20_save" value="1">Save</button></p></form></div>
 		<?php
 	} );
@@ -305,13 +317,65 @@ add_action( 'init', function () {
 	foreach ( (array) glob( $dir . '/*.pdf' ) as $f ) if ( $f && filemtime( $f ) < time() - 2 * DAY_IN_SECONDS ) @unlink( $f );
 } );
 
-function jr20_limit() {
+/* ---------- Payment (Stripe Checkout, hosted by Stripe) ---------- */
+function jr20_currency() { return array( 'ca' => 'cad', 'au' => 'aud', 'in' => 'inr', 'gl' => 'usd' )[ jr20_country() ]; }
+function jr20_price() {
+	$p = (float) get_option( 'jr20_price', 0 );
+	return $p > 0 ? $p : array( 'cad' => 0.99, 'aud' => 0.99, 'inr' => 50, 'usd' => 0.99 )[ jr20_currency() ];
+}
+function jr20_price_label() {
+	$sym = array( 'cad' => 'CA$', 'aud' => 'A$', 'inr' => '₹', 'usd' => 'US$' )[ jr20_currency() ];
+	$p   = jr20_price();
+	return $sym . ( floor( $p ) == $p ? number_format( $p ) : number_format( $p, 2 ) );
+}
+function jr20_paid() { return 'no' !== get_option( 'jr20_paid', 'yes' ); }
+function jr20_pay_ready() { return jr20_paid() && (bool) get_option( 'jr20_stripe_key' ); }
+function jr20_stripe( $method, $path, $params = array() ) {
+	$r = wp_remote_request( 'https://api.stripe.com/v1/' . $path, array(
+		'method'  => $method,
+		'timeout' => 30,
+		'headers' => array( 'Authorization' => 'Bearer ' . get_option( 'jr20_stripe_key' ) ),
+		'body'    => 'GET' === $method ? null : $params,
+	) );
+	if ( is_wp_error( $r ) ) return new WP_Error( 'jr', 'Payment service is not reachable. Please try again.', array( 'status' => 503 ) );
+	$j = json_decode( wp_remote_retrieve_body( $r ), true );
+	if ( wp_remote_retrieve_response_code( $r ) >= 300 ) {
+		error_log( 'jr20 stripe: ' . wp_remote_retrieve_body( $r ) );
+		return new WP_Error( 'jr', 'Payment could not be started. Please try again later.', array( 'status' => 502 ) );
+	}
+	return $j;
+}
+/** A paid pass: up to 3 resume writes within 7 days. */
+function jr20_pass_get( $id ) {
+	if ( ! preg_match( '/^cs_(live|test)_[A-Za-z0-9]{10,200}$/', (string) $id ) ) return null;
+	$p = get_option( 'jr20_pass_' . md5( $id ) );
+	if ( is_array( $p ) ) return $p['exp'] > time() ? $p : null;
+	$s = jr20_stripe( 'GET', 'checkout/sessions/' . rawurlencode( $id ) );
+	if ( is_wp_error( $s ) || 'paid' !== ( $s['payment_status'] ?? '' ) || 'jr_resume' !== ( $s['metadata']['jr'] ?? '' ) ) return null;
+	if ( ( (int) ( $s['created'] ?? 0 ) ) < time() - 7 * DAY_IN_SECONDS ) return null;
+	$p = array( 'uses' => 3, 'exp' => (int) $s['created'] + 7 * DAY_IN_SECONDS );
+	add_option( 'jr20_pass_' . md5( $id ), $p, '', false );
+	update_option( 'jr20_paid_count', (int) get_option( 'jr20_paid_count', 0 ) + 1, false );
+	return $p;
+}
+add_action( 'init', function () {
+	$k = 'jr20_passgc_' . gmdate( 'Ymd' );
+	if ( get_transient( $k ) ) return;
+	set_transient( $k, 1, DAY_IN_SECONDS );
+	global $wpdb;
+	foreach ( $wpdb->get_results( "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name LIKE 'jr20\\_pass\\_%' LIMIT 2000" ) as $o ) {
+		$v = maybe_unserialize( $o->option_value );
+		if ( ! is_array( $v ) || $v['exp'] < time() ) delete_option( $o->option_name );
+	}
+} );
+
+function jr20_limit( $max = 5 ) {
 	$ip  = $_SERVER['REMOTE_ADDR'] ?? '';
 	$uid = get_current_user_id();
 	if ( current_user_can( 'manage_options' ) ) return true;
 	$k = 'jr20_u_' . md5( $uid ? 'u' . $uid : $ip ) . gmdate( 'Ymd' );
 	$n = (int) get_transient( $k );
-	if ( $n >= 5 ) return new WP_Error( 'jr', 'You have made 5 resumes today. Please come back tomorrow.', array( 'status' => 429 ) );
+	if ( $n >= $max ) return new WP_Error( 'jr', 'You have made ' . $max . ' resumes today. Please come back tomorrow.', array( 'status' => 429 ) );
 	$day = 'jr20_used_' . gmdate( 'Ymd' );
 	if ( (int) get_option( $day, 0 ) >= (int) get_option( 'jr20_ai_daily', 300 ) ) return new WP_Error( 'jr', 'The resume writer is very busy today. Please try again tomorrow.', array( 'status' => 429 ) );
 	set_transient( $k, $n + 1, DAY_IN_SECONDS );
@@ -324,10 +388,43 @@ function jr20_count() {
 	delete_option( 'jr20_used_' . gmdate( 'Ymd', time() - 3 * DAY_IN_SECONDS ) );
 }
 
+function jr19_rate_ok( $key, $max ) {
+	$k = 'jr20_rl_' . md5( $key . '|' . ( $_SERVER['REMOTE_ADDR'] ?? '' ) );
+	$n = (int) get_transient( $k );
+	if ( $n >= $max ) return false;
+	set_transient( $k, $n + 1, HOUR_IN_SECONDS );
+	return true;
+}
 /* ---------- REST ---------- */
 add_action( 'rest_api_init', function () {
 	register_rest_route( 'jobsrack/v1', '/resume/status', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => function () {
 		return array( 'ready' => (bool) get_option( 'jr20_ai_key' ), 'country' => jr20_country() );
+	} ) );
+	register_rest_route( 'jobsrack/v1', '/resume/checkout', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => function ( WP_REST_Request $q ) {
+		if ( ! jr20_pay_ready() ) return new WP_Error( 'jr', 'Payments are not set up yet.', array( 'status' => 503 ) );
+		if ( ! jr19_rate_ok( 'jr20co', 20 ) ) return new WP_Error( 'jr', 'Too many tries. Please wait a little.', array( 'status' => 429 ) );
+		$back = home_url( '/resume-builder/' );
+		$p    = array(
+			'mode' => 'payment',
+			'success_url' => $back . ( false === strpos( $back, '?' ) ? '?' : '&' ) . 'jr_paid={CHECKOUT_SESSION_ID}',
+			'cancel_url'  => $back,
+			'line_items[0][quantity]' => 1,
+			'line_items[0][price_data][currency]' => jr20_currency(),
+			'line_items[0][price_data][unit_amount]' => (int) round( jr20_price() * 100 ),
+			'line_items[0][price_data][product_data][name]' => 'AI resume writing – ' . get_bloginfo( 'name' ),
+			'line_items[0][price_data][product_data][description]' => 'A professional resume written for you, up to 3 versions within 7 days, PDF download.',
+			'metadata[jr]' => 'jr_resume',
+			'metadata[site]' => jr20_country(),
+		);
+		$e = sanitize_email( (string) $q->get_param( 'email' ) );
+		if ( $e ) $p['customer_email'] = $e;
+		$s = jr20_stripe( 'POST', 'checkout/sessions', $p );
+		if ( is_wp_error( $s ) ) return $s;
+		return array( 'url' => $s['url'] );
+	} ) );
+	register_rest_route( 'jobsrack/v1', '/resume/pass', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => function ( WP_REST_Request $q ) {
+		$p = jr20_pass_get( (string) $q->get_param( 'id' ) );
+		return $p ? array( 'ok' => true, 'uses' => (int) $p['uses'], 'exp' => (int) $p['exp'] ) : array( 'ok' => false );
 	} ) );
 	register_rest_route( 'jobsrack/v1', '/resume/write', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => function ( WP_REST_Request $q ) {
 		$p = $q->get_params();
@@ -336,11 +433,22 @@ add_action( 'rest_api_init', function () {
 		if ( is_wp_error( $file ) ) return $file;
 		if ( ! $file && mb_strlen( trim( (string) ( $p['experience'] ?? '' ) . (string) ( $p['education'] ?? '' ) ) ) < 30 ) return new WP_Error( 'jr', 'Please tell us about your work or studies (a few lines is fine), or upload your old resume.', array( 'status' => 400 ) );
 		if ( ! get_option( 'jr20_ai_key' ) ) return new WP_Error( 'jr', 'The AI resume writer is coming soon. Please check back shortly.', array( 'status' => 503 ) );
-		$ok = jr20_limit();
-		if ( is_wp_error( $ok ) ) return $ok;
+		// Website: paid when payments are on. The app is free (Google Play rules for in-app purchases).
+		$pass_id = (string) ( $p['pass'] ?? '' );
+		$is_app  = ! empty( $_SERVER['HTTP_X_JR_APP'] );
+		$pass    = null;
+		if ( jr20_paid() && ! $is_app && ! current_user_can( 'manage_options' ) ) {
+			if ( ! jr20_pay_ready() ) return new WP_Error( 'jr', 'The AI resume writer is coming soon. Please check back shortly.', array( 'status' => 503 ) );
+			$pass = jr20_pass_get( $pass_id );
+			if ( ! $pass || $pass['uses'] < 1 ) return new WP_Error( 'jr', 'Please pay first to get your resume written.', array( 'status' => 402 ) );
+		} else {
+			$ok = jr20_limit( $is_app ? 2 : 5 );
+			if ( is_wp_error( $ok ) ) return $ok;
+		}
 		$r = jr20_write( $p, $file );
 		if ( is_wp_error( $r ) ) return $r;
 		jr20_count();
+		if ( $pass ) { $pass['uses']--; update_option( 'jr20_pass_' . md5( $pass_id ), $pass, false ); }
 		// Contact details come from the person, not the AI.
 		foreach ( array( 'email', 'phone', 'city' ) as $k ) if ( ! empty( $p[ $k ] ) ) $r['contact'][ $k ] = jr20_s( $p[ $k ], 100 );
 		return array( 'resume' => $r );
@@ -380,6 +488,7 @@ add_action( 'init', function () {
 	update_option( 'jr20_page', is_object( $id ) ? $id->ID : (int) $id, false );
 } );
 add_shortcode( 'jr_resume_writer', function () {
+	if ( ! defined( 'DONOTCACHEPAGE' ) ) define( 'DONOTCACHEPAGE', true );
 	$c    = jr20_country();
 	$u    = wp_get_current_user();
 	$cand = $u->ID && ! in_array( 'cs_employer', (array) $u->roles, true );
@@ -411,6 +520,18 @@ add_shortcode( 'jr_resume_writer', function () {
 .jrrw .tips{background:#ecfdf3;border-radius:10px;padding:12px 16px;margin-top:14px;font-size:15px}
 .jrrw [contenteditable]:focus{outline:2px dashed #1F7A4D;outline-offset:2px}
 </style>
+<?php $paid = jr20_paid() && ! current_user_can( 'manage_options' ); ?>
+<div id="jrrw-pay" style="display:none" class="paper">
+<h2 style="font-size:24px">Get a professional resume written by AI</h2>
+<p class="lead">Tell us about yourself or upload your old resume, and get a clean resume in the <?php echo esc_html( $fmt ); ?> format employers expect, ready as a PDF.</p>
+<ul style="margin:0 0 6px 18px"><li>Written for the job you want</li><li>Up to 3 versions within 7 days</li><li>PDF download, and save it to your JobsRack profile</li></ul>
+<?php if ( jr20_pay_ready() ) : ?>
+<label>Your email <span class="hint">(for the receipt)</span></label><input type="email" id="jrrw-pe" value="<?php echo esc_attr( $pre['email'] ); ?>">
+<button class="btn" id="jrrw-pb" type="button">Pay <?php echo esc_html( jr20_price_label() ); ?> and start</button>
+<p class="hint">Secure payment by Stripe. Or get it free in the JobsRack app.</p>
+<?php else : ?><p class="ok">Coming soon. Please check back shortly.</p><?php endif; ?>
+<div class="err" id="jrrw-pe2"></div>
+</div>
 <form id="jrrw-f">
 <h2>Free AI resume builder</h2>
 <p class="lead">Tell us about yourself, or upload your old resume. Our AI writes a clean, professional resume in the <?php echo esc_html( $fmt ); ?> format employers expect, ready to download as a PDF.</p>
@@ -430,7 +551,7 @@ add_shortcode( 'jr_resume_writer', function () {
 <label>Paste the job ad <span class="hint">(optional — the resume is tailored to it)</span></label><textarea name="job_ad" style="min-height:70px"></textarea>
 <button class="btn" type="submit">Write my resume</button>
 <div class="err" id="jrrw-e"></div>
-<p class="hint" style="margin-top:14px">Free, up to 5 a day. The AI only uses what you tell it; check everything before you send it. <a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>">Privacy</a></p>
+<p class="hint" style="margin-top:14px"><span id="jrrw-left"></span>The AI only uses what you tell it; check everything before you send it. <a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>">Privacy</a></p>
 </form>
 <div id="jrrw-out" style="display:none">
 <div class="paper" id="jrrw-p"></div>
@@ -444,7 +565,15 @@ add_shortcode( 'jr_resume_writer', function () {
 <script>
 (function(){
 var api='<?php echo esc_url_raw( rest_url( 'jobsrack/v1/resume/' ) ); ?>',nonce='<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>',country='<?php echo esc_js( $c ); ?>';
-var f=document.getElementById('jrrw-f'),out=document.getElementById('jrrw-out'),P=document.getElementById('jrrw-p'),R=null;
+var f=document.getElementById('jrrw-f'),out=document.getElementById('jrrw-out'),P=document.getElementById('jrrw-p'),R=null,paid=<?php echo $paid ? 'true' : 'false'; ?>,pass='';
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k)||'';if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){return ''}}
+var pay=document.getElementById('jrrw-pay');
+function showPay(){pay.style.display='';f.style.display='none'}
+function checkPass(id,cb){fetch(api+'pass?id='+encodeURIComponent(id),{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){cb(j&&j.ok?j:null)}).catch(function(){cb(null)})}
+function left(n){var el=document.getElementById('jrrw-left');if(el)el.textContent=paid?(n>0?n+(n==1?' version':' versions')+' left on your payment. ':''):''}
+if(paid){f.style.display='none';var q=new URLSearchParams(location.search).get('jr_paid')||ls('jrrw_pass');
+ if(q){checkPass(q,function(j){if(j&&j.uses>0){pass=q;ls('jrrw_pass',q);left(j.uses);f.style.display='';if(location.search.indexOf('jr_paid')>-1)history.replaceState(null,'',location.pathname)}else{ls('jrrw_pass',null);showPay()}})}else showPay()}
+var pb=document.getElementById('jrrw-pb');if(pb)pb.onclick=function(){pb.disabled=true;fetch(api+'checkout',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({email:document.getElementById('jrrw-pe').value})}).then(function(r){return r.json()}).then(function(j){if(j.url)location=j.url;else{pb.disabled=false;document.getElementById('jrrw-pe2').textContent=j.message||'Could not start the payment.'}}).catch(function(){pb.disabled=false})};
 function E(t){var d=document.createElement('div');d.textContent=t==null?'':t;return d.innerHTML}
 function ed(path,t,tag){return '<'+(tag||'span')+' contenteditable="true" data-p="'+path+'">'+E(t)+'</'+(tag||'span')+'>'}
 function render(r){
@@ -464,15 +593,17 @@ function render(r){
 }
 P.addEventListener('input',function(ev){var el=ev.target.closest('[data-p]');if(!el||!R)return;var k=el.getAttribute('data-p').split('.'),o=R;for(var i=0;i<k.length-1;i++){o=o[isNaN(k[i])?k[i]:+k[i]]}o[k[k.length-1]]=el.textContent.trim()});
 f.addEventListener('submit',function(ev){ev.preventDefault();var b=f.querySelector('button[type=submit]'),e=document.getElementById('jrrw-e');e.textContent='';b.disabled=true;b.textContent='Writing your resume… (about 20 seconds)';
- fetch(api+'write',{method:'POST',body:new FormData(f),headers:{'X-WP-Nonce':nonce},credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){
+ var fd=new FormData(f);if(pass)fd.append('pass',pass);
+ fetch(api+'write',{method:'POST',body:fd,headers:{'X-WP-Nonce':nonce},credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){
   b.disabled=false;b.textContent='Write my resume';if(!j.resume){e.textContent=j.message||'Something went wrong. Please try again.';return}
+  if(paid)checkPass(pass,function(p){left(p?p.uses:0)});
   R=j.resume;render(R);f.style.display='none';out.style.display='';window.scrollTo({top:document.getElementById('jrrw').offsetTop-80,behavior:'smooth'})
  }).catch(function(){b.disabled=false;b.textContent='Write my resume';e.textContent='Network problem. Please try again.'})});
 function pdf(save){var e=document.getElementById('jrrw-e2'),ok=document.getElementById('jrrw-ok');e.textContent='';ok.textContent='';
  return fetch(api+'pdf',{method:'POST',headers:{'Content-Type':'application/json','X-WP-Nonce':nonce},credentials:'same-origin',body:JSON.stringify({resume:R,save:save?1:0})}).then(function(r){return r.json()}).then(function(j){if(!j.url){e.textContent=j.message||'Could not create the PDF.';return null}return j})}
 document.getElementById('jrrw-dl').onclick=function(){var w=window.open('','_blank');pdf(false).then(function(j){if(j){if(w)w.location=j.url;else location=j.url}else if(w)w.close()})};
 var sv=document.getElementById('jrrw-sv');if(sv)sv.onclick=function(){sv.disabled=true;pdf(true).then(function(j){sv.disabled=false;if(j&&j.saved)document.getElementById('jrrw-ok').textContent='Saved. Employers now see this resume, and it is used when you apply.'})};
-document.getElementById('jrrw-re').onclick=function(){out.style.display='none';f.style.display=''};
+document.getElementById('jrrw-re').onclick=function(){out.style.display='none';if(paid&&!pass)showPay();else f.style.display=''};
 })();
 </script>
 </div>

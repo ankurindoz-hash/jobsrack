@@ -194,7 +194,7 @@ export default function ResumeWriter() {
         <Field label="Education" value={f.education} onChangeText={up('education')} multiline placeholder="e.g. Diploma in Business, Sheridan College, 2022" />
         <Field label="Skills (optional)" value={f.skills} onChangeText={up('skills')} placeholder="e.g. Excel, forklift, Punjabi" />
         <Button title={busy ? 'Writing your resume… (about 20 seconds)' : 'Write my resume'} icon="sparkles-outline" onPress={write} disabled={!!busy || ready === false} />
-        <Text style={[k.hint, { textAlign: 'center', marginTop: 10 }]}>Free, up to 5 a day.</Text>
+        <Text style={[k.hint, { textAlign: 'center', marginTop: 10 }]}>Free in the app, up to 2 a day.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );

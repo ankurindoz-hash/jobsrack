@@ -61,7 +61,7 @@ const v1 = (site: SiteCode) => `${SITES[site].host}/wp-json/jobsrack/v1`;
 export class AuthError extends Error {}
 
 async function call<T>(site: SiteCode, path: string, opts: { method?: string; body?: any; auth?: boolean; timeout?: number } = {}): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json' };
+  const headers: Record<string, string> = { Accept: 'application/json', 'X-JR-App': '1' };
   const token = getState().auth?.token;
   if (token && opts.auth !== false) {
     headers.Authorization = `Bearer ${token}`;
