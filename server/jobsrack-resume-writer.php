@@ -321,7 +321,7 @@ add_action( 'init', function () {
 function jr20_currency() { return array( 'ca' => 'cad', 'au' => 'aud', 'in' => 'inr', 'gl' => 'usd' )[ jr20_country() ]; }
 function jr20_price() {
 	$p = (float) get_option( 'jr20_price', 0 );
-	return $p > 0 ? $p : array( 'cad' => 0.99, 'aud' => 0.99, 'inr' => 50, 'usd' => 0.99 )[ jr20_currency() ];
+	return $p > 0 ? $p : array( 'cad' => 2.99, 'aud' => 2.99, 'inr' => 99, 'usd' => 1.99 )[ jr20_currency() ];
 }
 function jr20_price_label() {
 	$sym = array( 'cad' => 'CA$', 'aud' => 'A$', 'inr' => '₹', 'usd' => 'US$' )[ jr20_currency() ];

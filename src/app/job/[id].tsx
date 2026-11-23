@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Badge, Button, Empty, Pay } from '../../components/ui';
-import { companyByName } from '../../lib/account';
+import { companyByName, jobExtra, reportJob } from '../../lib/account';
 import { getJob, htmlToBlocks, timeAgo, type JobDetail, type SiteCode } from '../../lib/api';
 import { openInApp } from '../../lib/nav';
 import { getState, hasApplied, isSaved, toggleSaved, useStore } from '../../lib/store';
@@ -32,6 +32,13 @@ export default function JobScreen() {
       });
   };
   useEffect(load, [site, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [verified, setVerified] = useState(false);
+  useEffect(() => {
+    jobExtra(site, id)
+      .then((x) => setVerified(x.verified))
+      .catch(() => {});
+  }, [site, id]);
 
   const blocks = useMemo(() => (job?.content ? htmlToBlocks(job.content) : []), [job?.content]);
 
@@ -80,6 +87,12 @@ export default function JobScreen() {
           <Pressable onPress={openCompany}>
             <Text style={st.company}>{job.company}</Text>
           </Pressable>
+        )}
+        {verified && (
+          <View style={st.verified}>
+            <Ionicons name="shield-checkmark" size={15} color={colors.brand} />
+            <Text style={{ color: colors.brand, fontWeight: '700', fontSize: 13 }}>Verified employer</Text>
+          </View>
         )}
         <Text style={st.meta}>
           {job.city ? `${job.city} · ` : ''}Posted {timeAgo(job.posted)}
@@ -151,6 +164,7 @@ export default function JobScreen() {
             )}
           </View>
         )}
+        <ReportJob site={site} id={id} />
       </ScrollView>
       <SafeAreaView edges={['bottom']} style={st.bar}>
         {applied ? (
@@ -171,7 +185,63 @@ export default function JobScreen() {
   );
 }
 
+const REASONS = ['Looks like a scam', 'Asks for money or bank details', 'Job is already filled', 'Wrong or misleading details', 'Offensive or discriminatory', 'Other'];
+
+function ReportJob({ site, id }: { site: SiteCode; id: number }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [details, setDetails] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const send = async () => {
+    if (!reason) return setMsg('Please choose a reason.');
+    setBusy(true);
+    try {
+      setMsg((await reportJob(site, id, reason, details.trim())).message);
+      setOpen(false);
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!open)
+    return (
+      <View style={{ alignItems: 'center', marginTop: 18 }}>
+        {!!msg && <Text style={[st.p, { color: colors.brand, marginBottom: 6 }]}>{msg}</Text>}
+        {!msg && (
+          <Pressable onPress={() => setOpen(true)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="flag-outline" size={15} color={colors.muted} />
+            <Text style={{ color: colors.muted, fontSize: 14 }}>Report this job</Text>
+          </Pressable>
+        )}
+        <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 10 }}>Never pay an employer to get a job or share your bank details before you are hired.</Text>
+      </View>
+    );
+  return (
+    <View style={st.card}>
+      <Text style={st.h}>Report this job</Text>
+      <View style={[st.chips, { marginBottom: 8 }]}>
+        {REASONS.map((r) => (
+          <Pressable key={r} onPress={() => setReason(r)} style={[st.reason, reason === r && { backgroundColor: colors.brand, borderColor: colors.brand }]}>
+            <Text style={{ fontSize: 13, color: reason === r ? '#fff' : colors.text }}>{r}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <TextInput value={details} onChangeText={setDetails} placeholder="Anything else we should know? (optional)" placeholderTextColor="#98A2B3" multiline style={st.input} maxLength={1000} />
+      {!!msg && <Text style={{ color: colors.danger, marginTop: 6 }}>{msg}</Text>}
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+        <Button title="Cancel" kind="outline" onPress={() => setOpen(false)} style={{ flex: 1 }} />
+        <Button title={busy ? 'Sending…' : 'Send report'} onPress={send} disabled={busy} style={{ flex: 1 }} />
+      </View>
+    </View>
+  );
+}
+
 const st = StyleSheet.create({
+  verified: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
+  reason: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  input: { borderWidth: 1, borderColor: '#D0D5DD', borderRadius: 10, padding: 10, minHeight: 70, textAlignVertical: 'top', fontSize: 15, color: colors.ink },
   offline: { backgroundColor: '#FFF4E5', color: '#B54708', padding: 10, borderRadius: 8, marginBottom: 12, fontSize: 13 },
   title: { fontSize: 24, fontWeight: '800', color: colors.ink, lineHeight: 30 },
   company: { fontSize: 16, color: colors.brand, fontWeight: '600', marginTop: 4 },

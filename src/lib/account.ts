@@ -20,7 +20,7 @@ export type User = {
   resume_url: string;
 };
 
-export type Application = { job: JobCard; applied: number; status: string };
+export type Application = { job: JobCard; applied: number; status: string; viewed?: number };
 
 export type Thread = { id: string; with: string; job: string; last: string; time: number; unread: boolean };
 export type Message = { id: number; mine: boolean; text: string; time: number };
@@ -188,3 +188,7 @@ export function writeResume(site: SiteCode, f: ResumeInput, old?: { uri: string;
 }
 
 export const resumePdf = (site: SiteCode, resume: ResumeDoc, save = false) => call<{ url: string; saved: boolean; name: string }>(site, '/resume/pdf', { body: { resume, save: save ? 1 : 0 }, timeout: 60000 });
+
+/* ---------- Job extras: verified employer, report a job ---------- */
+export const jobExtra = (site: SiteCode, id: number) => call<{ verified: boolean }>(site, `/job/${id}/extra`);
+export const reportJob = (site: SiteCode, id: number, reason: string, details: string) => call<{ ok: boolean; message: string }>(site, `/job/${id}/report`, { body: { reason, details } });
