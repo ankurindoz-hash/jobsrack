@@ -158,13 +158,14 @@ function jr22_faq() {
 		array( 'What should I do if I am underpaid?', 'Look at the better-paying jobs listed under your result, update your resume, and use the typical pay as a guide when you ask for a raise or negotiate an offer.' ),
 	);
 }
-add_filter( 'the_content', function ( $c ) {
+add_filter( 'do_shortcode_tag', function ( $c, $tag ) {
+	if ( ! in_array( $tag, array( 'jr_resume_writer', 'jr_pay_checker' ), true ) ) return $c;
 	$f = jr22_faq();
-	if ( ! $f || ! in_the_loop() || ! is_main_query() ) return $c;
+	if ( ! $f ) return $c;
 	$h = '<div class="jr22-faq" style="max-width:760px;margin:30px auto 0"><h2 style="font-size:22px">Frequently asked questions</h2>';
 	foreach ( $f as $q ) $h .= '<details style="border:1px solid #e4e7ec;border-radius:10px;padding:12px 14px;margin:0 0 8px;background:#fff"><summary style="font-weight:700;cursor:pointer">' . esc_html( $q[0] ) . '</summary><p style="margin:8px 0 0">' . esc_html( $q[1] ) . '</p></details>';
 	return $c . $h . '</div>';
-}, 40 );
+}, 10, 2 );
 add_action( 'wp_head', function () {
 	$f = jr22_faq();
 	if ( $f ) {
